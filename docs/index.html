@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draw a Digit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Work+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Plan: a lab-bench instrument. Left: the slate you draw on; right: the network's readout as 10 meters.
+   Ink-on-slate canvas is the signature element; one cobalt accent marks the winning digit. */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --ink: #121826; --muted: #5d6677; --line: #d6dbe4;
+  --accent: #1d5fd1; --accent-soft: #dfe8fa; --slate: #141a26; --chalk: #ffffff;
+  --display: "Space Mono", ui-monospace, Consolas, monospace;
+  --body: "Work Sans", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0d1119; --surface: #161c28; --ink: #e8ecf3; --muted: #9aa4b6; --line: #273043;
+    --accent: #7aa7ff; --accent-soft: #1c2a47; --slate: #05070c; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0d1119; --surface: #161c28; --ink: #e8ecf3; --muted: #9aa4b6; --line: #273043;
+  --accent: #7aa7ff; --accent-soft: #1c2a47; --slate: #05070c; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--body); }
+a { color: var(--accent); }
+.wrap { width: min(980px, 100% - 32px); margin: 0 auto; padding: 40px 0 56px; display: grid; gap: 28px; }
+h1 { font: 700 clamp(1.9rem, 4.5vw, 2.8rem)/1.1 var(--display); letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; margin: 10px 0 0; }
+.bench { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 760px) { .bench { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 14px; }
+.label { font: 400 0.75rem var(--display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+#pad { width: 100%; aspect-ratio: 1; background: var(--slate); border-radius: 12px; touch-action: none; cursor: crosshair; display: block; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+button { font: 500 0.95rem var(--body); padding: 9px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.preview { display: flex; gap: 12px; align-items: center; font-size: 0.85rem; color: var(--muted); }
+#small { width: 56px; height: 56px; image-rendering: pixelated; border-radius: 6px; background: #000; }
+.answer { display: flex; align-items: baseline; gap: 16px; }
+.big { font: 700 6rem/0.9 var(--display); color: var(--accent); min-width: 0.7em; }
+.conf { font: 400 1.05rem var(--display); }
+.hint { color: var(--muted); font-size: 0.9rem; }
+.meters { display: grid; gap: 7px; }
+.meter { display: grid; grid-template-columns: 22px 1fr 56px; gap: 10px; align-items: center; font: 400 0.9rem var(--display); }
+.track { height: 12px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.fill { height: 100%; width: 0; background: var(--muted); border-radius: 99px; }
+.meter.top .fill { background: var(--accent); }
+.meter.top { font-weight: 700; }
+.meter .pct { text-align: right; font-variant-numeric: tabular-nums; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.fact { border-top: 2px solid var(--accent); padding-top: 8px; }
+.fact b { display: block; font: 700 1.5rem var(--display); }
+.fact span { font-size: 0.88rem; color: var(--muted); }
+footer { font-size: 0.88rem; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .fill { transition: width 0.18s ease; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Draw a digit. A CNN built from scratch reads it.</h1>
+    <p class="lede">A small convolutional neural network written in plain NumPy, trained on 55,000 handwritten digits from MNIST, and running here in your browser. Draw any digit from 0 to 9 on the dark pad.</p>
+  </header>
+
+  <div class="bench">
+    <div class="card">
+      <span class="label">Draw here</span>
+      <canvas id="pad" width="280" height="280" aria-label="Drawing pad: draw a digit with mouse, finger or pen"></canvas>
+      <div class="row">
+        <button type="button" id="clear">Clear</button>
+        <div class="preview"><canvas id="small" width="28" height="28" aria-label="What the network sees, 28 by 28 pixels"></canvas><span>What the network sees (28 × 28 pixels)</span></div>
+      </div>
+    </div>
+    <div class="card" aria-live="polite">
+      <span class="label">The network's answer</span>
+      <div class="answer"><span class="big" id="digit">?</span><span class="conf" id="conf"></span></div>
+      <p class="hint" id="hint">Draw a single digit, large and centred, like writing on paper.</p>
+      <div class="meters" id="meters"></div>
+    </div>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><b>98.71%</b><span>accuracy on the 10,000 MNIST test images</span></div>
+    <div class="fact"><b>52,138</b><span>parameters: two 3×3 conv layers, then two dense layers</span></div>
+    <div class="fact"><b>0 frameworks</b><span>NumPy only; gradients checked numerically</span></div>
+  </div>
+
+  <footer>By Sara Abbasi · Code and results: <a href="https://github.com/AbbasiSarah/handwritten-digit-cnn">github.com/AbbasiSarah/handwritten-digit-cnn</a> · Data: MNIST (Y. LeCun, C. Cortes, C. J. C. Burges)</footer>
+</div>
+
+<script src="weights.js"></script>
+<script src="model.js"></script>
+<script>
+(function () {
+  const P = window.DIGIT_WEIGHTS;
+  const pad = document.getElementById('pad'), ctx = pad.getContext('2d');
+  const small = document.getElementById('small'), sctx = small.getContext('2d');
+  const work = document.createElement('canvas'); work.width = work.height = 28;
+  const wctx = work.getContext('2d', { willReadFrequently: true });
+  const meters = document.getElementById('meters');
+  const bars = [];
+  for (let d = 0; d < 10; d++) {
+    const m = document.createElement('div'); m.className = 'meter';
+    m.innerHTML = `<span>${d}</span><div class="track"><div class="fill"></div></div><span class="pct">0%</span>`;
+    meters.appendChild(m); bars.push(m);
+  }
+  function reset() {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 280, 280);
+    sctx.fillStyle = '#000'; sctx.fillRect(0, 0, 28, 28);
+    document.getElementById('digit').textContent = '?';
+    document.getElementById('conf').textContent = '';
+    bars.forEach(b => { b.classList.remove('top'); b.querySelector('.fill').style.width = '0'; b.querySelector('.pct').textContent = '0%'; });
+  }
+  // MNIST-style preprocessing: crop ink, scale longest side to 20 px, centre by centre of mass in 28x28
+  function toInput() {
+    const img = ctx.getImageData(0, 0, 280, 280).data;
+    let x0 = 280, y0 = 280, x1 = -1, y1 = -1;
+    for (let y = 0; y < 280; y++) for (let x = 0; x < 280; x++) if (img[(y * 280 + x) * 4] > 40) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return null;
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, s = 20 / Math.max(w, h);
+    const dw = Math.max(1, Math.round(w * s)), dh = Math.max(1, Math.round(h * s));
+    const draw = (ox, oy) => {
+      wctx.fillStyle = '#000'; wctx.fillRect(0, 0, 28, 28);
+      wctx.imageSmoothingEnabled = true; wctx.imageSmoothingQuality = 'high';
+      wctx.drawImage(pad, x0, y0, w, h, ox, oy, dw, dh);
+      return wctx.getImageData(0, 0, 28, 28).data;
+    };
+    let ox = Math.round((28 - dw) / 2), oy = Math.round((28 - dh) / 2);
+    let d = draw(ox, oy), sx = 0, sy = 0, sm = 0;
+    for (let i = 0; i < 784; i++) { const v = d[i * 4]; sx += (i % 28) * v; sy += Math.floor(i / 28) * v; sm += v; }
+    if (sm > 0) { ox += Math.round(13.5 - sx / sm); oy += Math.round(13.5 - sy / sm); d = draw(ox, oy); }
+    const out = new Float32Array(784);
+    for (let i = 0; i < 784; i++) out[i] = d[i * 4] / 255;
+    sctx.drawImage(work, 0, 0);
+    return out;
+  }
+  function classify() {
+    const x = toInput();
+    if (!x) return;
+    const p = DigitNet.predict(x, P);
+    const best = p.indexOf(Math.max(...p));
+    document.getElementById('digit').textContent = best;
+    document.getElementById('conf').textContent = `${(p[best] * 100).toFixed(1)}% sure`;
+    document.getElementById('hint').textContent = p[best] < 0.6 ? 'Not very sure: try drawing it larger or more clearly.' : 'Keep drawing or clear the pad to try another.';
+    bars.forEach((b, d) => {
+      b.classList.toggle('top', d === best);
+      b.querySelector('.fill').style.width = (p[d] * 100).toFixed(1) + '%';
+      b.querySelector('.pct').textContent = (p[d] * 100).toFixed(p[d] < 0.1 ? 1 : 0) + '%';
+    });
+  }
+  let drawing = false, last = null, pending = false;
+  const pos = e => { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * 280 / r.width, (e.clientY - r.top) * 280 / r.height]; };
+  pad.addEventListener('pointerdown', e => { drawing = true; last = pos(e); pad.setPointerCapture(e.pointerId); stroke(last, last); });
+  pad.addEventListener('pointermove', e => { if (!drawing) return; const p = pos(e); stroke(last, p); last = p; });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => pad.addEventListener(ev, () => { if (drawing) { drawing = false; classify(); } }));
+  function stroke(a, b) {
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 20; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; classify(); }); }
+  }
+  document.getElementById('clear').addEventListener('click', reset);
+  reset();
+  // start with a drawn example so the page is never empty: a "3"
+  const pts = [[95, 70], [140, 55], [185, 75], [180, 115], [140, 135], [185, 155], [190, 200], [140, 225], [90, 205]];
+  for (let i = 1; i < pts.length; i++) stroke(pts[i - 1], pts[i]);
+  classify();
+})();
+</script>
+</body>
+</html>
