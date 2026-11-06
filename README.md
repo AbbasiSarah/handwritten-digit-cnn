@@ -1,5 +1,7 @@
 # Handwritten Digit Recognition: a CNN from Scratch
 
+<p align="center"><a href="https://abbasisarah.github.io/assets/videos/demo-handwritten-digit-cnn.mp4"><img src="assets/demo.gif" width="300" alt="17-second project demo"></a><br><sub>17-second demo. Click for the video with sound.</sub></p>
+
 A convolutional neural network written in **plain NumPy**, with no TensorFlow or PyTorch. Every layer's forward and backward pass is hand-written and numerically gradient-checked. It recognises handwritten digits with **98.71% accuracy** on the 10,000 MNIST test images.
 
 **Live demo:** https://abbasisarah.github.io/handwritten-digit-cnn/ (draw a digit and the trained network reads it in your browser).
